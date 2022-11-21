@@ -1,0 +1,103 @@
+version: "3.8"
+services:
+  postgres-server:
+    image: postgres_timescaledb:latest
+    container_name: postgres-server
+    restart: always
+    env_file:
+      - docker-compose.conf
+    #    environment:
+    # POSTGRES_USER: zabbix
+    # POSTGRES_PASSWORD: zabbix
+    # POSTGRES_DB: zabbix
+      #PGDATA: /var/lib/postgresql/data/pgdata
+    networks:
+      - zabbix-net
+    volumes:
+      - "/var/lib/postgresql/data/:/opt/zabbix/lib/postgresql/data"
+    ports:
+      - "5432:5432"
+
+  zabbix-snmptraps:
+    image: zabbix/zabbix-snmptraps:alpine-5.2-latest
+    restart: always
+    container_name: zabbix-snmptraps
+    networks:
+      - zabbix-net
+    ports:
+      - 162:1162/udp
+    volumes:
+      - /zbx_instance/snmptraps:/var/lib/zabbix/snmptraps:rw
+      - /var/lib/zabbix/mibs:/usr/share/snmp/mibs:ro
+
+  zabbix-server-pgsql:
+    image: zabbix/zabbix-server-pgsql:alpine-5.2-latest
+    restart: always
+    container_name: zabbix-server-pgsql
+    ports:
+      - 10051:10051
+    networks:
+      - zabbix-net
+    environment:
+      DB_SERVER_HOST: postgres-server
+      POSTGRES_USER: zabbix
+      POSTGRES_PASSWORD: zabbix
+      POSTGRES_DB: zabbix
+      ZBX_VALUECACHESIZE: 256M
+
+  zabbix-web-nginx-pgsql-dc:
+    image: zabbix/zabbix-web-nginx-pgsql:alpine-5.2-latest
+    restart: always
+    container_name: zabbix-web-nginx-pgsql
+    networks:
+      - zabbix-net
+    ports:
+      - 443:8443
+      - 80:8080
+    environment:
+      ZBX_SERVER_HOST: zabbix-server-pgsql
+      DB_SERVER_HOST: postgres-server
+      POSTGRES_USER: zabbix
+      POSTGRES_PASSWORD: zabbix
+      POSTGRES_DB: zabbix
+    volumes:
+      - /etc/ssl/nginx:/etc/ssl/nginx:ro
+
+  zabbix-proxy:
+    image: zabbix/zabbix-proxy-sqlite3:5.2-alpine-latest
+    restart: always
+    container_name: zabbix_proxy
+    environment:
+      ZBX_SERVER_HOST: zabbix-server-pgsql
+      ZBX_JAVAGATEWAY: zabbix-java-gateway
+      ZBX_HOSTNAME: zabbix_proxy
+      ZBX_CONFIGFREQUENCY: "5"
+    networks:
+      - zabbix-net
+
+  zabbix-java-gateway:
+    image: zabbix/zabbix-java-gateway:latest
+    restart: always
+    container_name: zabbix-java-gateway
+    environment:
+      ZBX_SERVER_HOST: zabbix-proxy
+    networks:
+      - zabbix-net
+  zabbix-agent2:
+    image: zabbix/zabbix-agent2
+    restart: always
+    container_name: zabbix-agent2
+    environment:
+    #ZBX_SERVER_HOST: zabbix-server-pgsql
+      ZBX_SERVER_HOST: zabbix-proxy
+      ZBX_HOSTNAME: zabbix-agent2
+    networks:
+      - zabbix-net
+
+  zabbix-net:
+    external: true
+    #ipam:
+    #driver: default
+    #config:
+    #- subnet: "172.20.240.0/16"
+
