@@ -1,0 +1,24 @@
+version: "3.8"
+services:
+  prometheus:
+    image: prom/prometheus
+    container_name: prometheus
+    hostname: prometheus
+    restart: always
+    volumes:
+      - /opt/apps/prometheus/conf:/etc/prometheus
+    ports:
+      - "9090:9090"
+    networks:
+      - zabbix-net
+networks:
+  zabbix-net:
+    external: true
+    #ipam:
+    #driver: default
+    #config:
+    #- subnet: "172.20.240.0/16"
+
+  zabbix-agent:
+    ipam:
+      driver: default
